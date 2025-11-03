@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>Vertex Displacement by Grayscale Texture • three.js r128</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>html,body{height:100%;margin:0} canvas{display:block}</style>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+<script>
+  // Scene / Camera / Renderer
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+
+  const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
+  camera.position.set(0, 0.9, 3.2);
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  document.body.appendChild(renderer.domElement);
+
+  new THREE.OrbitControls(camera, renderer.domElement);
+
+  // ---- Shaders (sample texture ใน vertex แล้วดัน pos.z) ----
+  const vert = `
+    uniform sampler2D uHeight;
+    varying float vH;
+
+    void main(){
+      vec3 pos = position;
+      float h = texture2D(uHeight, uv).r; // อ่านค่าวิลูมจากภาพ (0..1)
+      pos.z += h * 0.3;                   // นูนตามค่า
+      vH = h;                             // ส่งไปทำสีง่ายๆ
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    }
+  `;
+  const frag = `
+    precision mediump float;
+    varying float vH;
+    void main(){
+      // ระบายสีตามความสูง: ดำ→น้ำเงิน→ฟ้า
+      gl_FragColor = vec4(0.2*vH, 0.5*vH + 0.2, 1.0*vH + 0.1, 1.0);
+    }
+  `;
+
+  // โหลด texture แล้วค่อยสร้าง geometry/material ให้สัดส่วนตรงกับรูป
+  //https://upload.wikimedia.org/wikipedia/commons/7/71/Black.png
+  //https://www.shutterstock.com/shutterstock/videos/3608118583/thumb/10.jpg?ip=x480
+  new THREE.TextureLoader().load('https://variety.com/wp-content/uploads/2020/12/Dwayne_Johnson.png', (tex) => {
+
+    const geo = new THREE.PlaneBufferGeometry(4, 2, 200, 200);
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: vert,
+      fragmentShader: frag,
+      uniforms: { uHeight: { value: tex } },
+      //wireframe: true, // เปิดถ้าอยากดูเส้นตาราง
+      side: THREE.DoubleSide
+       
+    });
+
+    const mesh = new THREE.Mesh(geo, mat);
+    scene.add(mesh);
+  });
+
+  // Resize & Render loop
+  addEventListener('resize', ()=>{
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  (function loop(){
+    renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  })();
+</script>
+</body>
+</html>

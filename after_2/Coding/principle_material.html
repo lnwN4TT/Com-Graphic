@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>Glass Fix – MeshPhysicalMaterial transmission (r128)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>html,body{height:100%;margin:0} canvas{display:block}</style>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+<script>
+  const scene = new THREE.Scene();
+  // ฉากสีอ่อน + มองทะลุเห็น "พื้น" ด้านหลังวัตถุได้
+  scene.background = new THREE.Color(0x000000);
+
+  const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
+  camera.position.set(0, 1.2, 3);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.shadowMap.enabled = true;
+  renderer.physicallyCorrectLights = true;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  document.body.appendChild(renderer.domElement);
+
+  new THREE.OrbitControls(camera, renderer.domElement);
+
+  // แสง
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 0.6));
+  const dir = new THREE.DirectionalLight(0xffffff, 3.0);
+  dir.position.set(3, 5, 2);
+  dir.castShadow = true;
+  scene.add(dir);
+
+  // พื้น (ให้เห็นฉากหลังจริง ๆ ผ่านกระจก)
+  const ground = new THREE.Mesh(
+    new THREE.PlaneBufferGeometry(12, 12),
+    new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.9, metalness: 0.0 })
+  );
+  ground.rotation.x = -Math.PI/2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // envMap ช่วยเพิ่มความสมจริงของการสะท้อน/หักเห
+  const envMap = new THREE.CubeTextureLoader().load([
+    'https://threejs.org/examples/textures/cube/Bridge2/posx.jpg',
+    'https://threejs.org/examples/textures/cube/Bridge2/negx.jpg',
+    'https://threejs.org/examples/textures/cube/Bridge2/posy.jpg',
+    'https://threejs.org/examples/textures/cube/Bridge2/negy.jpg',
+    'https://threejs.org/examples/textures/cube/Bridge2/posz.jpg',
+    'https://threejs.org/examples/textures/cube/Bridge2/negz.jpg'
+  ]);
+  envMap.encoding = THREE.sRGBEncoding;
+  scene.environment = envMap;
+
+  // ลูกแก้วแบบ “มองทะลุได้”
+  const ball = new THREE.Mesh(
+    new THREE.SphereBufferGeometry(0.65, 64, 64),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      metalness: 0.5,
+      roughness: 0.2,
+      transparent: true,   // ทำให้เป็นวัตถุโปร่งใส (จัดเรียงการวาดถูกต้อง)
+      opacity: 1.0,        
+      transmission: 0.5,   // โปร่งใสแบบแก้ว (พึ่งพา env/background)
+      ior: 1.5,
+      thickness: 1.2,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.06,
+      envMap: envMap,
+      envMapIntensity: 1.4
+    })
+  );
+  ball.position.y = 0.7;
+  ball.castShadow = true;
+  scene.add(ball);
+
+  // วัตถุด้านหลังให้เห็นชัดว่ามองทะลุ (เสา/กล่อง)
+  const backBox = new THREE.Mesh(
+    new THREE.BoxBufferGeometry(0.4, 1.0, 0.4),
+    new THREE.MeshStandardMaterial({ color: 0x8bc34a, roughness: 0.6 })
+  );
+  backBox.position.set(-0.6, 0.5, -0.6);
+  backBox.castShadow = true;
+  scene.add(backBox);
+
+  addEventListener('resize', ()=>{
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  let t = 0;
+  (function loop(){
+    t += 0.01;
+    ball.rotation.y += 0.01;
+    dir.position.x = 3 + Math.sin(t)*1.0;
+    renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  })();
+</script>
+</body>
+</html>
